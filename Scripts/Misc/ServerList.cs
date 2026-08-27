@@ -35,13 +35,9 @@ namespace Server.Misc
 
                 var ipep = (IPEndPoint)s.LocalEndPoint;
 
-                var address = ipep.Address;
-                var addressClient = ((IPEndPoint)s.RemoteEndPoint).Address;
-
-                if (!IPAddress.IsLoopback(addressClient) && !IsPrivateNetwork(addressClient))
-                {
-                    address = Address;
-                }
+                // Behind Docker's NAT the local endpoint is the container's bridge address,
+                // which the client cannot route to. Server.cfg is authoritative instead.
+                var address = Address;
 
                 e.AddServer(ServerName, new IPEndPoint(address, ipep.Port));
             }
