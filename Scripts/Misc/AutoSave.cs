@@ -16,7 +16,7 @@ namespace Server.Misc
 
 		private static readonly TimeSpan m_Delay;
         private static readonly TimeSpan m_Warning;
-		
+
         private static readonly Timer m_Timer;
 
         public static bool SavesEnabled { get; set; }
@@ -107,16 +107,19 @@ namespace Server.Misc
             if (m_Backups.Length == 0)
                 return false;
 
-            string root = Path.Combine(Core.BaseDirectory, "Backups/Automatic");
+            // Saves is a bind mount: it cannot be renamed, and renaming its contents onto
+            // another filesystem fails as well. Keeping backups inside it makes every step
+            // a same-device rename.
+            string root = Path.Combine(Core.BaseDirectory, "Saves/Backups/Automatic");
 
             if (!Directory.Exists(root))
                 Directory.CreateDirectory(root);
 
-            string tempRoot = Path.Combine(Core.BaseDirectory, "Backups/Temp");
+            string tempRoot = Path.Combine(Core.BaseDirectory, "Saves/Backups/Temp");
 
             if (Directory.Exists(tempRoot))
                 Directory.Delete(tempRoot, true);
-            
+
             string[] existing = Directory.GetDirectories(root);
 
             bool anySuccess = existing.Length == 0;
@@ -161,7 +164,22 @@ namespace Server.Misc
             string saves = Path.Combine(Core.BaseDirectory, "Saves");
 
             if (Directory.Exists(saves))
-                Directory.Move(saves, Path.Combine(root, m_Backups[m_Backups.Length - 1]));
+            {
+                string dest = Path.Combine(root, m_Backups[m_Backups.Length - 1]);
+
+                Directory.CreateDirectory(dest);
+
+                foreach (string dir in Directory.GetDirectories(saves))
+                {
+                    if (Path.GetFileName(dir) == "Backups")
+                        continue;
+
+                    Directory.Move(dir, Path.Combine(dest, Path.GetFileName(dir)));
+                }
+
+                foreach (string file in Directory.GetFiles(saves))
+                    File.Move(file, Path.Combine(dest, Path.GetFileName(file)));
+            }
 
             return anySuccess;
         }
