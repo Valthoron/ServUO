@@ -482,7 +482,7 @@ namespace Server.Misc
             }
         }
 
-        private static bool IsForbiddenChar(char c)
+        public static bool IsForbiddenChar(char c)
         {
             for (int i = 0; i < m_ForbiddenChars.Length; ++i)
                 if (c == m_ForbiddenChars[i])

@@ -1,0 +1,60 @@
+/* Page-specific rules for the account admin. Tokens only, no literal colours:
+   the account table and the page chassis are the two things the design system
+   does not ship as components. */
+
+.page{display:flex;flex-direction:column;min-height:100vh}
+
+/* ── Chassis strip ──────────────────────────────────────────── */
+.chassis{display:flex;align-items:center;gap:var(--sp-6);height:60px;flex:none;
+  padding:0 var(--sp-7);background:var(--surface-shell);background-image:var(--texture-brush);
+  border-bottom:1px solid var(--seam);box-shadow:inset 0 -1px 0 0 var(--bevel-light)}
+.chassis__brand{font:var(--fw-bold) var(--fs-lg)/1 var(--font-display);
+  letter-spacing:var(--track-legend);text-transform:uppercase;color:var(--akc-sea)}
+.chassis__sub{font:var(--type-pixel);color:var(--text-disabled);margin-top:2px}
+.chassis__lamps{margin-left:auto;display:flex;align-items:center;gap:var(--sp-6)}
+.chassis a{border:0}
+
+.bay{flex:1;width:100%;max-width:var(--content-max);margin:0 auto;
+  padding:var(--sp-7);display:flex;flex-direction:column;gap:var(--gutter-module)}
+
+/* ── Account table ──────────────────────────────────────────── */
+.acct{width:100%;border-collapse:collapse;font:var(--type-body-sm)}
+.acct th{font:var(--type-legend);letter-spacing:var(--track-legend);text-transform:uppercase;
+  color:var(--text-legend);text-align:left;padding:0 var(--sp-5) var(--sp-4);white-space:nowrap}
+.acct th:last-child,.acct td:last-child{text-align:right}
+.acct td{padding:var(--sp-4) var(--sp-5);border-top:1px solid var(--border-hair);vertical-align:middle}
+.acct tbody tr:hover td{background:var(--surface-raised)}
+.acct__user{font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--text-primary)}
+.acct__num{font:var(--type-readout);color:var(--text-secondary);font-variant-numeric:tabular-nums;
+  white-space:nowrap}
+.acct__num--quiet{color:var(--text-muted)}
+.acct__actions{display:flex;gap:var(--sp-3);justify-content:flex-end}
+.table-scroll{overflow-x:auto}
+
+/* ── Forms ──────────────────────────────────────────────────── */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:var(--gutter-module);align-items:end}
+.form-row{display:flex;gap:var(--gutter-module);align-items:center;flex-wrap:wrap}
+.form-actions{display:flex;gap:var(--sp-5);margin-top:var(--sp-6)}
+.readouts{display:flex;gap:var(--sp-5);flex-wrap:wrap}
+.readouts .hl-readout{flex:1 1 150px}
+.stack{display:flex;flex-direction:column;gap:var(--gutter-module)}
+.hl-select{width:100%}
+
+/* The Select component draws its chevron with the Lucide Icon component, which
+   needs React and a CDN. Server-rendered pages draw it instead. */
+.hl-select__chevron{width:0;height:0;border-left:4px solid transparent;
+  border-right:4px solid transparent;border-top:5px solid var(--text-muted)}
+
+.muted{color:var(--text-muted)}
+.warn-text{color:var(--status-warn)}
+
+/* Links wearing button classes: the base stylesheet's anchor rules would otherwise
+   recolour them on hover and draw an underline through the bevel. */
+a.hl-btn,a.hl-btn:hover,a.hl-btn:active{color:var(--text-primary);border-bottom-color:var(--border-strong)}
+a.hl-btn--ghost,a.hl-btn--ghost:active{color:var(--text-secondary);border-bottom-color:var(--border-hair)}
+a.hl-btn--ghost:hover{color:var(--text-primary)}
+a.hl-btn--hot,a.hl-btn--hot:hover,a.hl-btn--hot:active{color:var(--ink-000);border-bottom-color:var(--akc-rose)}
+
+/* The Switch component's lit legend is driven by a class the React component sets. */
+.hl-switch:has(input:checked) .hl-switch__legend{color:var(--ch-text,var(--ch,var(--accent)))}
