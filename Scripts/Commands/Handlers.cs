@@ -19,7 +19,7 @@ namespace Server.Commands
     {
         public static void Initialize()
         {
-            CommandSystem.Prefix = "[";
+            CommandSystem.Prefix = ".";
 
             Register("Go", AccessLevel.Counselor, new CommandEventHandler(Go_OnCommand));
 
@@ -439,8 +439,8 @@ namespace Server.Commands
             BroadcastMessage(AccessLevel.Player, 0x482, e.ArgString);
         }
 
-        public static void BroadcastMessage(AccessLevel ac, int hue, string message) 
-        { 
+        public static void BroadcastMessage(AccessLevel ac, int hue, string message)
+        {
             World.Broadcast(hue, false, ac, message);
         }
 
