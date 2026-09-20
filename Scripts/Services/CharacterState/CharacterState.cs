@@ -55,7 +55,7 @@ namespace Server.Engines.CharacterStates
         /// <summary>
         ///     Item properties the restore sets by itself, from the element instead of a value.
         /// </summary>
-        private static readonly string[] _NotProperties = {"Parent", "Map", "Location", "Layer"};
+        private static readonly string[] _NotProperties = {"Parent", "Map", "Location", "Layer", "X", "Y", "Z"};
 
         private static readonly Dictionary<Type, PropertyInfo[]> _Writable = new Dictionary<Type, PropertyInfo[]>();
 
@@ -298,7 +298,7 @@ namespace Server.Engines.CharacterStates
         private static XElement SaveItems(Mobile m, List<string> notes)
         {
             var root = new XElement("items");
-            var probes = new Dictionary<Type, Item>();
+            var probes = new Dictionary<Type, Item[]>();
 
             try
             {
@@ -314,7 +314,7 @@ namespace Server.Engines.CharacterStates
             }
             finally
             {
-                foreach (var probe in probes.Values.Where(p => p != null))
+                foreach (var probe in probes.Values.Where(p => p != null).SelectMany(p => p))
                 {
                     probe.Delete();
                 }
@@ -323,12 +323,12 @@ namespace Server.Engines.CharacterStates
             return root;
         }
 
-        private static XElement SaveItem(Item item, bool equipped, Dictionary<Type, Item> probes, List<string> notes)
+        private static XElement SaveItem(Item item, bool equipped, Dictionary<Type, Item[]> probes, List<string> notes)
         {
             var type = item.GetType();
-            var probe = Probe(type, probes);
+            var fresh = Probe(type, probes);
 
-            if (probe == null)
+            if (fresh == null)
             {
                 notes.Add(String.Format("{0} cannot be built again, so it was left out.", type.Name));
                 return null;
@@ -348,11 +348,20 @@ namespace Server.Engines.CharacterStates
 
             // Only what differs from a fresh item of the same type. So a hatchet writes one line
             // instead of fifty, and a reader sees what the state actually decides.
+            //
+            // Two fresh items answer the question, not one: a constructor that rolls a value, as a
+            // weapon rolls its durability, makes a one-item comparison a coin toss. A property that
+            // the two fresh items disagree on is never a default, so it always goes in the file.
             foreach (var p in Writable(type))
             {
-                string mine, fresh;
+                string mine, first, second;
 
-                if (!Read(item, p, out mine) || !Read(probe, p, out fresh) || mine == fresh)
+                if (!Read(item, p, out mine) || !Read(fresh[0], p, out first) || !Read(fresh[1], p, out second))
+                {
+                    continue;
+                }
+
+                if (first == second && mine == first)
                 {
                     continue;
                 }
@@ -383,29 +392,47 @@ namespace Server.Engines.CharacterStates
         }
 
         /// <summary>
-        ///     One fresh instance per type, to compare against. The caller deletes them.
+        ///     Two fresh instances per type, to compare against, or null when the type cannot be
+        ///     built. The caller deletes them.
         /// </summary>
-        private static Item Probe(Type type, Dictionary<Type, Item> probes)
+        private static Item[] Probe(Type type, Dictionary<Type, Item[]> probes)
         {
-            Item probe;
+            Item[] pair;
 
-            if (probes.TryGetValue(type, out probe))
+            if (probes.TryGetValue(type, out pair))
             {
-                return probe;
+                return pair;
             }
+
+            Item first = null, second = null;
 
             try
             {
-                probe = Activator.CreateInstance(type, true) as Item;
+                first = Activator.CreateInstance(type, true) as Item;
+                second = Activator.CreateInstance(type, true) as Item;
             }
             catch
+            { }
+
+            pair = first != null && second != null ? new[] {first, second} : null;
+
+            if (pair == null)
             {
-                probe = null;
+                // One of the two may still have been built, and nothing else will delete it.
+                if (first != null)
+                {
+                    first.Delete();
+                }
+
+                if (second != null)
+                {
+                    second.Delete();
+                }
             }
 
-            probes[type] = probe;
+            probes[type] = pair;
 
-            return probe;
+            return pair;
         }
 
         #endregion
@@ -602,7 +629,11 @@ namespace Server.Engines.CharacterStates
                     continue;
                 }
 
-                // The parent first: a property may depend on where the item hangs.
+                // The values go in before the item hangs anywhere. A container decides an item's
+                // grid slot as it goes in, and it counts the item itself as an occupant, so a slot
+                // set afterwards always reads as taken and the item moves one along.
+                LoadValues(item, type, element, notes);
+
                 var mobile = parent as Mobile;
 
                 if (mobile != null)
@@ -625,25 +656,6 @@ namespace Server.Engines.CharacterStates
                     container.AddItem(item);
                 }
 
-                foreach (var set in element.Elements("set"))
-                {
-                    var given = (string)set.Attribute("name");
-                    var p = Writable(type).FirstOrDefault(w => Insensitive.Equals(w.Name, given));
-
-                    if (p == null)
-                    {
-                        notes.Add(String.Format("{0} has no property {1}.", type.Name, given));
-                        continue;
-                    }
-
-                    var error = Write(item, p, set.Value);
-
-                    if (error != null)
-                    {
-                        notes.Add(String.Format("{0}.{1}: {2}", type.Name, given, error));
-                    }
-                }
-
                 var children = element.Element("items");
 
                 if (children == null)
@@ -660,6 +672,64 @@ namespace Server.Engines.CharacterStates
                     notes.Add(String.Format("{0} is not a container, so its contents were left out.", type.Name));
                 }
             }
+        }
+
+        /// <summary>
+        ///     Applies the values of one item, in two passes. A property can clamp itself to another
+        ///     one, as a weapon clamps its durability to the maximum, and the file has no order that
+        ///     would put the maximum first. Whatever two passes cannot place lands in
+        ///     <paramref name="notes" />, so nothing goes missing in silence.
+        /// </summary>
+        private static void LoadValues(Item item, Type type, XElement element, List<string> notes)
+        {
+            var values = new List<KeyValuePair<PropertyInfo, string>>();
+
+            foreach (var set in element.Elements("set"))
+            {
+                var given = (string)set.Attribute("name");
+                var p = Writable(type).FirstOrDefault(w => Insensitive.Equals(w.Name, given));
+
+                if (p == null)
+                {
+                    notes.Add(String.Format("{0} has no property {1}.", type.Name, given));
+                    continue;
+                }
+
+                values.Add(new KeyValuePair<PropertyInfo, string>(p, set.Value));
+            }
+
+            for (var pass = 0; pass < 2; ++pass)
+            {
+                foreach (var value in values)
+                {
+                    if (Holds(item, value))
+                    {
+                        continue;
+                    }
+
+                    Write(item, value.Key, value.Value);
+                }
+            }
+
+            foreach (var value in values)
+            {
+                if (!Holds(item, value))
+                {
+                    string current;
+                    Read(item, value.Key, out current);
+
+                    notes.Add(
+                        String.Format(
+                            "{0}.{1} stayed {2} instead of {3}.", type.Name, value.Key.Name, current ?? "unreadable", value.Value));
+                }
+            }
+        }
+
+        private static bool Holds(Item item, KeyValuePair<PropertyInfo, string> value)
+        {
+            string current;
+
+            return Read(item, value.Key, out current) && current == value.Value;
         }
 
         private static void LoadPosition(Mobile m, XElement root, List<string> notes)
@@ -683,23 +753,32 @@ namespace Server.Engines.CharacterStates
                 (int?)root.Attribute("y") ?? 0,
                 (int?)root.Attribute("z") ?? 0);
 
-            // The login reads these, so a restore that only moves the body loses the position the
-            // moment the character logs in.
-            m.LogoutLocation = location;
-            m.LogoutMap = map;
-
-            // A logged-out character is internalized. Moving it would stand a body in the world
-            // with nobody in it.
-            if (m.Map != null && m.Map != Map.Internal)
-            {
-                m.MoveToWorld(location, map);
-            }
-
             Direction direction;
 
             if (Enum.TryParse((string)root.Attribute("direction"), true, out direction))
             {
                 m.Direction = direction;
+            }
+
+            // The login reads these, so a restore that only moves the body loses the position the
+            // moment the character logs in.
+            m.LogoutLocation = location;
+            m.LogoutMap = map;
+
+            if (m.NetState != null)
+            {
+                m.MoveToWorld(location, map);
+                return;
+            }
+
+            // The server keeps a logged-out character standing in the world for five minutes, and
+            // its own timer takes the body out when that time is up. A restored character has no
+            // business standing at the place it came from, so the body goes now. The timer then
+            // finds the character internalized and leaves the fields above alone.
+            if (m.Map != Map.Internal)
+            {
+                EventSink.InvokeLogout(new LogoutEventArgs(m));
+                m.Internalize();
             }
         }
 
