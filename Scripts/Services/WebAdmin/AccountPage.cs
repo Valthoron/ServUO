@@ -286,8 +286,8 @@ namespace Server.Engines.WebAdmin
 
             html.Append("<form method=\"post\" action=\"/character/save\" class=\"form-actions\">");
             StateFields(html, username, slot);
-            html.Append("<span class=\"hl-input\"><input class=\"hl-input__control\" type=\"text\" name=\"state\" "
-                        + "placeholder=\"baseline\" autocomplete=\"off\" required></span>");
+            html.Append("<span class=\"hl-input\" style=\"width:30ch\"><input class=\"hl-input__control\" type=\"text\" "
+                        + "name=\"state\" autocomplete=\"off\" required></span>");
             html.Append("<label class=\"hl-switch\"><input type=\"checkbox\" name=\"overwrite\" value=\"1\">");
             html.Append("<span class=\"hl-switch__track\"><span class=\"hl-switch__thumb\"></span></span>");
             html.Append("<span class=\"hl-switch__legend\">Overwrite</span></label>");
@@ -297,7 +297,7 @@ namespace Server.Engines.WebAdmin
             {
                 html.Append("<form method=\"post\" action=\"/character/restore\" class=\"form-actions\">");
                 StateFields(html, username, slot);
-                html.Append("<span class=\"hl-select\"><select class=\"hl-select__control\" name=\"state\">");
+                html.Append("<span class=\"hl-select\" style=\"width:24ch\"><select class=\"hl-select__control\" name=\"state\">");
 
                 foreach (var state in states)
                 {
