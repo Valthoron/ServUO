@@ -225,12 +225,23 @@ namespace Server.Engines.CharacterStates
 
         private static XElement SavePosition(Mobile m)
         {
+            var location = m.Location;
+            var map = m.Map;
+
+            // A logged-out character sits on the internal map, and the login puts it back from the
+            // logout fields. So those hold the position that matters, not the live one.
+            if ((map == null || map == Map.Internal) && m.LogoutMap != null)
+            {
+                location = m.LogoutLocation;
+                map = m.LogoutMap;
+            }
+
             return new XElement(
                 "position",
-                new XAttribute("x", m.X),
-                new XAttribute("y", m.Y),
-                new XAttribute("z", m.Z),
-                new XAttribute("map", m.Map == null ? Map.Internal.Name : m.Map.Name),
+                new XAttribute("x", location.X),
+                new XAttribute("y", location.Y),
+                new XAttribute("z", location.Z),
+                new XAttribute("map", map == null ? Map.Internal.Name : map.Name),
                 new XAttribute("direction", m.Direction & Direction.Mask));
         }
 
@@ -661,15 +672,28 @@ namespace Server.Engines.CharacterStates
             var mapName = (string)root.Attribute("map");
             var map = String.IsNullOrEmpty(mapName) ? null : Map.Parse(mapName);
 
-            if (map == null)
+            if (map == null || map == Map.Internal)
             {
-                notes.Add(String.Format("{0} is not a map, so the character stayed where it was.", mapName));
+                notes.Add(String.Format("{0} is not a place, so the character stayed where it was.", mapName));
                 return;
             }
 
-            m.MoveToWorld(
-                new Point3D((int?)root.Attribute("x") ?? 0, (int?)root.Attribute("y") ?? 0, (int?)root.Attribute("z") ?? 0),
-                map);
+            var location = new Point3D(
+                (int?)root.Attribute("x") ?? 0,
+                (int?)root.Attribute("y") ?? 0,
+                (int?)root.Attribute("z") ?? 0);
+
+            // The login reads these, so a restore that only moves the body loses the position the
+            // moment the character logs in.
+            m.LogoutLocation = location;
+            m.LogoutMap = map;
+
+            // A logged-out character is internalized. Moving it would stand a body in the world
+            // with nobody in it.
+            if (m.Map != null && m.Map != Map.Internal)
+            {
+                m.MoveToWorld(location, map);
+            }
 
             Direction direction;
 
