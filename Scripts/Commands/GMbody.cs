@@ -110,6 +110,7 @@ namespace Server.Commands
                         if (from.IsStaff())
                         {
                             EquipItem(new StaffRing());
+                            EquipItem(new GMRobe(StaffHue(from)));
 
                             PackItem(new GMHidingStone());
                             PackItem(new GMEthereal());
@@ -129,19 +130,7 @@ namespace Server.Commands
 
                         if (Config.Get("Staff.GiveBoots", true))
                         {
-                            int color = 0;
-                            if (Config.Get("Staff.UseColoring", true))
-                            {
-                                switch (m_Mobile.AccessLevel)
-                                {
-                                    case AccessLevel.Owner: color = Config.Get("Staff.Owner", 1001); break;
-                                    case AccessLevel.Developer: color = Config.Get("Staff.Developer", 1001); break;
-                                    case AccessLevel.Administrator: color = Config.Get("Staff.Administrator", 1001); break;
-                                    case AccessLevel.Seer: color = Config.Get("Staff.Seer", 467); break;
-                                    case AccessLevel.GameMaster: color = Config.Get("Staff.GameMaster", 39); break;
-                                    case AccessLevel.Counselor: color = Config.Get("Staff.Counselor", 3); break;
-                                }
-                            }
+                            int color = StaffHue(m_Mobile);
 
                             if (from.IsStaff() && from.AccessLevel <= AccessLevel.Spawner)
                                 EquipItem(new FurBoots(color));
@@ -157,6 +146,23 @@ namespace Server.Commands
                                 EquipItem(new FurBoots(color));
                         }
                     }
+                }
+            }
+
+            private static int StaffHue(Mobile from)
+            {
+                if (!Config.Get("Staff.UseColoring", true))
+                    return 0;
+
+                switch (from.AccessLevel)
+                {
+                    case AccessLevel.Owner: return Config.Get("Staff.Owner", 1001);
+                    case AccessLevel.Developer: return Config.Get("Staff.Developer", 1001);
+                    case AccessLevel.Administrator: return Config.Get("Staff.Administrator", 1001);
+                    case AccessLevel.Seer: return Config.Get("Staff.Seer", 467);
+                    case AccessLevel.GameMaster: return Config.Get("Staff.GameMaster", 39);
+                    case AccessLevel.Counselor: return Config.Get("Staff.Counselor", 3);
+                    default: return 0;
                 }
             }
 
