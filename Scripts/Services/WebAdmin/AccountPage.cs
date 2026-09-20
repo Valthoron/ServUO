@@ -5,6 +5,7 @@ using System.Text;
 using System.Web;
 
 using Server.Accounting;
+using Server.Engines.CharacterStates;
 using Server.Misc;
 using Server.Multis;
 
@@ -46,6 +47,7 @@ namespace Server.Engines.WebAdmin
 
             html.Append("</tbody></table></div></div></section>");
 
+            StatesPanel(html);
             CreatePanel(html);
 
             html.Append("</main></div></body></html>");
@@ -91,6 +93,7 @@ namespace Server.Engines.WebAdmin
 
             html.Append("</div></section>");
 
+            StatePanel(html, account);
             PasswordPanel(html, account.Username);
             PrivilegesPanel(html, account);
             DangerPanel(html, account.Username);
@@ -205,6 +208,113 @@ namespace Server.Engines.WebAdmin
             html.Append("</div><div class=\"form-actions\">");
             html.Append("<button class=\"hl-btn hl-btn--primary\" type=\"submit\">Create account</button>");
             html.Append("</div></form></div></section>");
+        }
+
+        private static void StatesPanel(StringBuilder html)
+        {
+            var states = StateAdmin.States();
+
+            PanelHead(html, "Character states", String.Format("{0} saved", states.Count));
+            html.Append("<div class=\"hl-panel__body\"><div class=\"table-scroll\"><table class=\"acct\">");
+            html.Append("<thead><tr><th>State</th><th>Saved</th><th>From</th><th>Size</th><th></th></tr></thead><tbody>");
+
+            foreach (var state in states)
+            {
+                html.Append("<tr>");
+                html.AppendFormat("<td class=\"acct__user\">{0}</td>", Encode(state.Name));
+                html.AppendFormat("<td class=\"acct__num acct__num--quiet\">{0}</td>",
+                                  state.Saved == DateTime.MinValue ? "unknown" : state.Saved.ToString("yyyy-MM-dd HH:mm"));
+                html.AppendFormat("<td>{0}</td>", Encode(state.From ?? "unknown"));
+                html.AppendFormat("<td class=\"acct__num acct__num--quiet\">{0:N1} kB</td>", state.Size / 1024.0);
+                html.Append("<td><div class=\"acct__actions\"><form method=\"post\" action=\"/states/delete\">");
+                html.AppendFormat("<input type=\"hidden\" name=\"state\" value=\"{0}\">", Encode(state.Name));
+                html.Append("<button class=\"hl-btn hl-btn--sm hl-btn--hot\" type=\"submit\">Delete</button>");
+                html.Append("</form></div></td></tr>");
+            }
+
+            if (states.Count == 0)
+            {
+                html.Append("<tr><td colspan=\"5\" class=\"muted\">No states. Save one from an account.</td></tr>");
+            }
+
+            html.Append("</tbody></table></div></div></section>");
+        }
+
+        private static void StatePanel(StringBuilder html, Account account)
+        {
+            var states = StateAdmin.States();
+
+            PanelHead(html, "Character state", "a state carries no name and no appearance, so any character can take it");
+            html.Append("<div class=\"hl-panel__body\">");
+
+            var any = false;
+
+            for (var slot = 0; slot < account.Length; ++slot)
+            {
+                var m = account[slot];
+
+                if (m == null)
+                {
+                    continue;
+                }
+
+                any = true;
+
+                StateForms(html, account.Username, slot, m, states);
+            }
+
+            if (!any)
+            {
+                html.Append("<p class=\"muted\">This account has no characters.</p>");
+            }
+
+            html.Append("</div></section>");
+        }
+
+        private static void StateForms(StringBuilder html, string username, int slot, Mobile m, List<StateInfo> states)
+        {
+            html.Append("<div class=\"form-row\" style=\"margin-top:var(--sp-4)\">");
+            html.AppendFormat("<span class=\"hl-legend\">{0}</span>", Encode(m.Name));
+            html.AppendFormat("<span class=\"hl-tag\">slot {0}</span>", slot);
+
+            if (m.NetState != null)
+            {
+                Led(html, "green", true, true, "Playing");
+            }
+
+            html.Append("</div><div class=\"form-row\">");
+
+            html.Append("<form method=\"post\" action=\"/character/save\" class=\"form-actions\">");
+            StateFields(html, username, slot);
+            html.Append("<span class=\"hl-input\"><input class=\"hl-input__control\" type=\"text\" name=\"state\" "
+                        + "placeholder=\"baseline\" autocomplete=\"off\" required></span>");
+            html.Append("<label class=\"hl-switch\"><input type=\"checkbox\" name=\"overwrite\" value=\"1\">");
+            html.Append("<span class=\"hl-switch__track\"><span class=\"hl-switch__thumb\"></span></span>");
+            html.Append("<span class=\"hl-switch__legend\">Overwrite</span></label>");
+            html.Append("<button class=\"hl-btn hl-btn--primary\" type=\"submit\">Save state</button></form>");
+
+            if (states.Count > 0)
+            {
+                html.Append("<form method=\"post\" action=\"/character/restore\" class=\"form-actions\">");
+                StateFields(html, username, slot);
+                html.Append("<span class=\"hl-select\"><select class=\"hl-select__control\" name=\"state\">");
+
+                foreach (var state in states)
+                {
+                    html.AppendFormat("<option value=\"{0}\">{0}</option>", Encode(state.Name));
+                }
+
+                html.Append("</select><span class=\"hl-select__chevron\"></span></span>");
+                html.Append("<button class=\"hl-btn hl-btn--hot\" type=\"submit\">Restore</button></form>");
+            }
+
+            html.Append("</div>");
+        }
+
+        private static void StateFields(StringBuilder html, string username, int slot)
+        {
+            html.AppendFormat("<input type=\"hidden\" name=\"username\" value=\"{0}\">", Encode(username));
+            html.AppendFormat("<input type=\"hidden\" name=\"slot\" value=\"{0}\">", slot);
         }
 
         private static void PasswordPanel(StringBuilder html, string username)

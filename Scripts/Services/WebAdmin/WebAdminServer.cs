@@ -302,6 +302,35 @@ namespace Server.Engines.WebAdmin
                     Redirect(context, deleted.Ok ? "/" : AccountUrl(username), deleted);
                     return;
                 }
+                case "/character/save":
+                {
+                    var slot = ParseSlot(form["slot"]);
+                    var overwrite = form["overwrite"] == "1";
+
+                    AdminResult saved = null;
+                    RunOnGameThread(() => saved = StateAdmin.Save(username, slot, form["state"], overwrite));
+
+                    Finish(context, form, AccountUrl(username), saved);
+                    return;
+                }
+                case "/character/restore":
+                {
+                    var slot = ParseSlot(form["slot"]);
+
+                    AdminResult restored = null;
+                    RunOnGameThread(() => restored = StateAdmin.Restore(username, slot, form["state"]));
+
+                    Finish(context, form, AccountUrl(username), restored);
+                    return;
+                }
+                case "/states/delete":
+                {
+                    AdminResult removed = null;
+                    RunOnGameThread(() => removed = StateAdmin.Delete(form["state"]));
+
+                    Finish(context, form, "/", removed);
+                    return;
+                }
             }
 
             Respond(context, 404, "text/plain; charset=utf-8", "Not found.");
@@ -392,6 +421,28 @@ namespace Server.Engines.WebAdmin
         private static string AccountUrl(string username)
         {
             return "/account?u=" + HttpUtility.UrlEncode(username ?? String.Empty);
+        }
+
+        private static int ParseSlot(string text)
+        {
+            int slot;
+
+            return Int32.TryParse(text, out slot) ? slot : -1;
+        }
+
+        /// <summary>
+        ///     A browser goes back to the page it posted from. A script asks for "format=text" and
+        ///     reads one line and a status code instead, so it needs no redirect and no HTML.
+        /// </summary>
+        private static void Finish(HttpListenerContext context, NameValueCollection form, string location, AdminResult result)
+        {
+            if (form["format"] == "text")
+            {
+                Respond(context, result.Ok ? 200 : 409, "text/plain; charset=utf-8", result.Message);
+                return;
+            }
+
+            Redirect(context, location, result);
         }
 
         private static void Redirect(HttpListenerContext context, string location, AdminResult result)
