@@ -9,9 +9,9 @@ namespace Server.Misc
     {
 		private static readonly string[] m_Backups = new string[]
         {
-            "Third Backup",
-            "Second Backup",
-            "Most Recent"
+            "_Third Backup",
+            "_Second Backup",
+            "_Most Recent"
         };
 
 		private static readonly TimeSpan m_Delay;
@@ -107,15 +107,12 @@ namespace Server.Misc
             if (m_Backups.Length == 0)
                 return false;
 
-            // Saves is a bind mount: it cannot be renamed, and renaming its contents onto
-            // another filesystem fails as well. Keeping backups inside it makes every step
-            // a same-device rename.
-            string root = Path.Combine(Core.BaseDirectory, "Saves/Backups/Automatic");
+            string root = Path.Combine(Core.BaseDirectory, "Backups");
 
             if (!Directory.Exists(root))
                 Directory.CreateDirectory(root);
 
-            string tempRoot = Path.Combine(Core.BaseDirectory, "Saves/Backups/Temp");
+            string tempRoot = Path.Combine(root, "Temp");
 
             if (Directory.Exists(tempRoot))
                 Directory.Delete(tempRoot, true);
@@ -165,23 +162,30 @@ namespace Server.Misc
 
             if (Directory.Exists(saves))
             {
-                string dest = Path.Combine(root, m_Backups[m_Backups.Length - 1]);
-
-                Directory.CreateDirectory(dest);
+                // Saves and Backups are separate bind mounts, so moving between them fails
+                // with a cross-device error. Copy, then empty Saves so the world save starts
+                // from a clean directory as a move would leave it.
+                CopyDirectory(saves, Path.Combine(root, m_Backups[m_Backups.Length - 1]));
 
                 foreach (string dir in Directory.GetDirectories(saves))
-                {
-                    if (Path.GetFileName(dir) == "Backups")
-                        continue;
-
-                    Directory.Move(dir, Path.Combine(dest, Path.GetFileName(dir)));
-                }
+                    Directory.Delete(dir, true);
 
                 foreach (string file in Directory.GetFiles(saves))
-                    File.Move(file, Path.Combine(dest, Path.GetFileName(file)));
+                    File.Delete(file);
             }
 
             return anySuccess;
+        }
+
+        private static void CopyDirectory(string source, string dest)
+        {
+            Directory.CreateDirectory(dest);
+
+            foreach (string file in Directory.GetFiles(source))
+                File.Copy(file, Path.Combine(dest, Path.GetFileName(file)));
+
+            foreach (string dir in Directory.GetDirectories(source))
+                CopyDirectory(dir, Path.Combine(dest, Path.GetFileName(dir)));
         }
 
         private static DirectoryInfo Match(string[] paths, string match)
