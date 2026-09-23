@@ -1,6 +1,8 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Text;
+using Server;
 
 namespace System
 {
@@ -11,6 +13,8 @@ namespace System
 #else
         private static readonly bool _Enabled = true;
 #endif
+
+        private static readonly bool _LocalTime = Config.Get("Server.LocalTimestamps", false);
 
         private static Stream m_OldOutput;
         private static bool m_Newline;
@@ -25,7 +29,8 @@ namespace System
         {
             get
             {
-                return String.Format("{0:D2}:{1:D2}:{2:D2} ", DateTime.UtcNow.Hour, DateTime.UtcNow.Minute, DateTime.UtcNow.Second);
+                DateTime now = _LocalTime ? DateTime.Now : DateTime.UtcNow;
+                return now.ToString("HH:mm:ss ", CultureInfo.InvariantCulture);
             }
         }
         public static void Initialize()

@@ -433,12 +433,28 @@ namespace Server
                 Name = "Timer Thread"
             };
 
+            Utility.PushColor(ConsoleColor.Green);
+            Console.WriteLine("Core: Loading config...");
+            Config.Load();
+            Utility.PopColor();
+
             Version ver = Assembly.GetName().Version;
 
             DateTime buildDate = File.GetLastWriteTimeUtc(ExePath);
+            string buildTime;
+
+            if (Config.Get("Server.LocalTimestamps", false))
+            {
+                DateTime localBuildDate = buildDate.ToLocalTime();
+                buildTime = String.Format("{0} {1:zzz}", localBuildDate, localBuildDate);
+            }
+            else
+            {
+                buildTime = String.Format("{0} UTC", buildDate);
+            }
 
             Utility.PushColor(ConsoleColor.Cyan);
-            Console.WriteLine("ServUO {0} @ {1} UTC{2}", ver, buildDate, Debug ? " - Debug" : string.Empty);
+            Console.WriteLine("ServUO {0} @ {1}{2}", ver, buildTime, Debug ? " - Debug" : string.Empty);
             Utility.PopColor();
 
             string s = Arguments;
@@ -515,11 +531,6 @@ namespace Server
 
             Utility.PushColor(ConsoleColor.DarkYellow);
             Console.WriteLine("RandomImpl: {0} ({1})", RandomImpl.Type.Name, RandomImpl.IsHardwareRNG ? "Hardware" : "Software");
-            Utility.PopColor();
-
-            Utility.PushColor(ConsoleColor.Green);
-            Console.WriteLine("Core: Loading config...");
-            Config.Load();
             Utility.PopColor();
 
             while (!ScriptCompiler.Compile(Debug, _Cache))
