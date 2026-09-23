@@ -24,6 +24,9 @@ namespace Server.Engines.WebAdmin
 
         private static readonly string[] _StaticFiles = { "homelab.css", "accounts.css" };
 
+        private const string FlashCookie = "flash";
+        private const string FlashCookieAttributes = "; Path=/; HttpOnly; SameSite=Strict";
+
         private static HttpListener _Listener;
 
         public static void Initialize()
@@ -202,20 +205,22 @@ namespace Server.Engines.WebAdmin
             {
                 case "/":
                 {
-                    var notice = query["msg"];
-                    var failed = query["err"] == "1";
+                    var flash = TakeFlash(context);
+                    var notice = flash?.Message;
+                    var failed = flash != null && !flash.Ok;
 
                     string page = null;
                     RunOnGameThread(() => page = AccountPage.Index(notice, failed));
 
-                    Html(context, page);
+                    Html(context, 200, page);
                     return;
                 }
                 case "/account":
                 {
                     var username = query["u"];
-                    var notice = query["msg"];
-                    var failed = query["err"] == "1";
+                    var flash = TakeFlash(context);
+                    var notice = flash?.Message;
+                    var failed = flash != null && !flash.Ok;
 
                     string page = null;
                     var found = false;
@@ -227,7 +232,7 @@ namespace Server.Engines.WebAdmin
                         page = found ? AccountPage.Detail(account, notice, failed) : AccountPage.NotFound(username);
                     });
 
-                    Respond(context, found ? 200 : 404, "text/html; charset=utf-8", page);
+                    Html(context, found ? 200 : 404, page);
                     return;
                 }
                 case "/account/delete":
@@ -244,7 +249,7 @@ namespace Server.Engines.WebAdmin
                         page = found ? AccountPage.DeleteConfirm(account) : AccountPage.NotFound(username);
                     });
 
-                    Respond(context, found ? 200 : 404, "text/html; charset=utf-8", page);
+                    Html(context, found ? 200 : 404, page);
                     return;
                 }
             }
@@ -445,25 +450,55 @@ namespace Server.Engines.WebAdmin
             Redirect(context, location, result);
         }
 
+        /// <summary>
+        ///     The result rides to the next page in a cookie rather than the query string, so it
+        ///     shows once and never becomes part of a history entry that Back or Reload replays.
+        /// </summary>
         private static void Redirect(HttpListenerContext context, string location, AdminResult result)
         {
-            var separator = location.IndexOf('?') >= 0 ? "&" : "?";
+            var value = HttpUtility.UrlEncode((result.Ok ? "1" : "0") + result.Message);
 
-            location += separator + "msg=" + HttpUtility.UrlEncode(result.Message);
-
-            if (!result.Ok)
-            {
-                location += "&err=1";
-            }
-
+            context.Response.AppendHeader("Set-Cookie", FlashCookie + "=" + value + "; Max-Age=60" + FlashCookieAttributes);
             context.Response.StatusCode = 303;
             context.Response.RedirectLocation = location;
             context.Response.Close();
         }
 
-        private static void Html(HttpListenerContext context, string body)
+        /// <summary>
+        ///     Returns the result a redirect left for this page, or null, and deletes it so it
+        ///     is shown only once.
+        /// </summary>
+        private static AdminResult TakeFlash(HttpListenerContext context)
         {
-            Respond(context, 200, "text/html; charset=utf-8", body);
+            var cookie = context.Request.Cookies[FlashCookie];
+
+            if (cookie == null || String.IsNullOrEmpty(cookie.Value))
+            {
+                return null;
+            }
+
+            context.Response.AppendHeader("Set-Cookie", FlashCookie + "=; Max-Age=0" + FlashCookieAttributes);
+
+            var value = HttpUtility.UrlDecode(cookie.Value);
+
+            if (value.Length < 2)
+            {
+                return null;
+            }
+
+            var message = value.Substring(1);
+
+            return value[0] == '1' ? AdminResult.Done("{0}", message) : AdminResult.Fail("{0}", message);
+        }
+
+        /// <summary>
+        ///     Pages are never cached: Back must fetch a fresh page, not replay one that still
+        ///     carries a toast.
+        /// </summary>
+        private static void Html(HttpListenerContext context, int status, string body)
+        {
+            context.Response.AppendHeader("Cache-Control", "no-store");
+            Respond(context, status, "text/html; charset=utf-8", body);
         }
 
         private static void Static(HttpListenerContext context, string name)

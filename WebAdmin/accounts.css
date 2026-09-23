@@ -58,3 +58,9 @@ a.hl-btn--hot,a.hl-btn--hot:hover,a.hl-btn--hot:active{color:var(--ink-000);bord
 
 /* The Switch component's lit legend is driven by a class the React component sets. */
 .hl-switch:has(input:checked) .hl-switch__legend{color:var(--ch-text,var(--ch,var(--accent)))}
+
+/* Toasts leave by themselves; errors stay longer, and hovering holds either. */
+.hl-toast{animation:hl-rise var(--dur-base) var(--ease-detent),toast-out var(--dur-base) ease-in 4s forwards}
+.hl-toast--error{animation-delay:0s,8s}
+.hl-toast:hover{animation-play-state:paused}
+@keyframes toast-out{to{opacity:0;transform:translateY(8px);visibility:hidden}}
