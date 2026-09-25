@@ -84,7 +84,13 @@ namespace Server.Misc
 
         protected virtual void DelayGiveGift_Callback(object state)
         {
-            this.GiveGift((Mobile)state);
+            Mobile mob = (Mobile)state;
+
+            // A character deleted within the delay has no pack and no bank.
+            if (mob.Deleted)
+                return;
+
+            this.GiveGift(mob);
         }
     }
 }

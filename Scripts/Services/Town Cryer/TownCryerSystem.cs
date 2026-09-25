@@ -187,6 +187,13 @@ namespace Server.Services.TownCryer
             {
                 Timer.DelayCall<PlayerMobile>(TimeSpan.FromSeconds(1), player =>
                 {
+                    // A character deleted within the second has no map, and
+                    // an exception here takes down the server.
+                    if (player.Deleted || player.Map == null)
+                    {
+                        return;
+                    }
+
                     if (HasCustomEntries())
                     {
                         BaseGump.SendGump(new TownCryerGreetingsGump(player, null));
