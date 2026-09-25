@@ -20,6 +20,7 @@ namespace Server.Accounting
 	[PropertyObject]
 	public class Account : IAccount, IComparable, IComparable<Account>
 	{
+		public static readonly bool YoungStatus = Config.Get("Accounts.YoungStatus", true);
 		public static readonly TimeSpan YoungDuration = TimeSpan.FromHours(40.0);
 		public static readonly TimeSpan InactiveDuration = TimeSpan.FromDays(180.0);
 		public static readonly TimeSpan EmptyInactiveDuration = TimeSpan.FromDays(30.0);
@@ -330,7 +331,14 @@ namespace Server.Accounting
 
 			if (Young)
 			{
-				CheckYoung();
+				if (YoungStatus)
+				{
+					CheckYoung();
+				}
+				else
+				{
+					RemoveYoungStatus(0);
+				}
 			}
 
             LoadSecureAccounts(node);

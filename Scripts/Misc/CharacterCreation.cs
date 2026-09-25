@@ -218,7 +218,7 @@ namespace Server.Misc
 				
 				pm.Profession = args.Profession;
 
-				if (pm.IsPlayer() && pm.Account.Young && !Siege.SiegeShard)
+				if (Account.YoungStatus && pm.IsPlayer() && pm.Account.Young && !Siege.SiegeShard)
 					young = pm.Young = true;
 			}
 
