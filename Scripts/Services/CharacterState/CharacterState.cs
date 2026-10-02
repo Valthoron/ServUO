@@ -326,9 +326,13 @@ namespace Server.Engines.CharacterStates
         private static XElement SaveItem(Item item, bool equipped, Dictionary<Type, Item[]> probes, List<string> notes)
         {
             var type = item.GetType();
-            var fresh = Probe(type, probes);
 
-            if (fresh == null)
+            // A bank box has no constructor without an owner, and a restore reuses the
+            // character's own, so it carries only its contents.
+            var isBank = item is BankBox;
+            var fresh = isBank ? null : Probe(type, probes);
+
+            if (!isBank && fresh == null)
             {
                 notes.Add(String.Format("{0} cannot be built again, so it was left out.", type.Name));
                 return null;
@@ -352,21 +356,24 @@ namespace Server.Engines.CharacterStates
             // Two fresh items answer the question, not one: a constructor that rolls a value, as a
             // weapon rolls its durability, makes a one-item comparison a coin toss. A property that
             // the two fresh items disagree on is never a default, so it always goes in the file.
-            foreach (var p in Writable(type))
+            if (!isBank)
             {
-                string mine, first, second;
-
-                if (!Read(item, p, out mine) || !Read(fresh[0], p, out first) || !Read(fresh[1], p, out second))
+                foreach (var p in Writable(type))
                 {
-                    continue;
-                }
+                    string mine, first, second;
 
-                if (first == second && mine == first)
-                {
-                    continue;
-                }
+                    if (!Read(item, p, out mine) || !Read(fresh[0], p, out first) || !Read(fresh[1], p, out second))
+                    {
+                        continue;
+                    }
 
-                element.Add(new XElement("set", new XAttribute("name", p.Name), mine));
+                    if (first == second && mine == first)
+                    {
+                        continue;
+                    }
+
+                    element.Add(new XElement("set", new XAttribute("name", p.Name), mine));
+                }
             }
 
             var container = item as Container;
@@ -493,7 +500,14 @@ namespace Server.Engines.CharacterStates
             // Everything above can refuse. From here the character changes, so nothing below may.
             foreach (var item in m.Items.ToArray())
             {
-                item.Delete();
+                if (item is BankBox)
+                {
+                    Empty((Container)item);
+                }
+                else
+                {
+                    item.Delete();
+                }
             }
 
             LoadFields(m, root.Element("fields"), notes);
@@ -612,6 +626,14 @@ namespace Server.Engines.CharacterStates
                     continue;
                 }
 
+                var mobile = parent as Mobile;
+
+                if (mobile != null && typeof(BankBox).IsAssignableFrom(type))
+                {
+                    LoadItems(mobile.BankBox, element.Element("items"), notes);
+                    continue;
+                }
+
                 Item item;
 
                 try
@@ -629,12 +651,19 @@ namespace Server.Engines.CharacterStates
                     continue;
                 }
 
+                // A container can fill itself as it is built, as a bag of reagents does. The file
+                // holds the contents, so whatever the constructor put in goes.
+                var built = item as Container;
+
+                if (built != null)
+                {
+                    Empty(built);
+                }
+
                 // The values go in before the item hangs anywhere. A container decides an item's
                 // grid slot as it goes in, and it counts the item itself as an occupant, so a slot
                 // set afterwards always reads as taken and the item moves one along.
                 LoadValues(item, type, element, notes);
-
-                var mobile = parent as Mobile;
 
                 if (mobile != null)
                 {
@@ -722,6 +751,14 @@ namespace Server.Engines.CharacterStates
                         String.Format(
                             "{0}.{1} stayed {2} instead of {3}.", type.Name, value.Key.Name, current ?? "unreadable", value.Value));
                 }
+            }
+        }
+
+        private static void Empty(Container container)
+        {
+            foreach (var item in container.Items.ToArray())
+            {
+                item.Delete();
             }
         }
 
