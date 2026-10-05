@@ -78,6 +78,14 @@ namespace Server.Misc
         {
             string root = GetRoot();
 
+            if (Core.Supervised)
+            {
+                Console.WriteLine("Crash: Exiting for the supervisor to restart");
+
+                e.Close = true;
+                return;
+            }
+
             Console.Write("Crash: Restarting...");
 
             try

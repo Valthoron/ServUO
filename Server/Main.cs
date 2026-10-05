@@ -74,7 +74,13 @@ namespace Server
             }
         }
 
+        // Read by supervise.sh in the container setup to decide whether to start the server again
+        public const int ExitCode_Shutdown = 0;
+        public const int ExitCode_Restart = 1;
+        public const int ExitCode_Crash = 2;
+
         public static bool Service { get; private set; }
+        public static bool Supervised { get; private set; }
 
         public static bool NoConsole { get; private set; }
         public static bool Debug { get; private set; }
@@ -212,7 +218,7 @@ namespace Server
                     { }
                 }
 
-                if (!close && !Service)
+                if (!close && !Service && !Supervised)
                 {
                     try
                     {
@@ -286,6 +292,13 @@ namespace Server
         {
             HandleClosed();
 
+            // A supervisor restarts the server itself. Spawning a copy can't work under one anyway: as a
+            // container's PID 1 the kernel ignores the SIGKILL below, and the copy dies with the container.
+            if (Supervised)
+            {
+                Environment.Exit(_Crashed ? ExitCode_Crash : (restart ? ExitCode_Restart : ExitCode_Shutdown));
+            }
+
             if (restart)
             {
                 Process.Start(ExePath, Arguments);
@@ -345,6 +358,10 @@ namespace Server
                 {
                     Service = true;
                 }
+                else if (Insensitive.Equals(a, "-supervised"))
+                {
+                    Supervised = true;
+                }
                 else if (Insensitive.Equals(a, "-profile"))
                 {
                     Profiling = true;
@@ -376,6 +393,7 @@ namespace Server
                     Console.WriteLine("     -noconsole          No user interaction during startup and runtime.");
                     Console.WriteLine("     -profile            Enables profiling allowing to get performance diagnostic information of packets, timers etc. in AdminGump -> Maintenance. Use with caution. This increases server load.");
                     Console.WriteLine("     -service            This parameter should be set if you're running ServUO as a Windows Service. No user interaction. *Windows only*");
+                    Console.WriteLine("     -supervised         Exits with code 0 on shutdown, 1 on restart, and 2 on a crash, and leaves restarting to the process that started ServUO.");
                     Console.WriteLine("     -usehrt             Enables High Resolution Timing if requirements are met. Increasing the resolution of the timer. *Windows only*");
                     Console.WriteLine("     -vb                 Enables compilation of VB.NET Scripts. Without this option VB.NET Scripts are skipped.");
 
@@ -629,6 +647,11 @@ namespace Server
                 if (Service)
                 {
                     Utility.Separate(sb, "-service", " ");
+                }
+
+                if (Supervised)
+                {
+                    Utility.Separate(sb, "-supervised", " ");
                 }
 
                 if (Profiling)
