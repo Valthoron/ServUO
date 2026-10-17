@@ -24,6 +24,8 @@ namespace Server.Engines.WebAdmin
 
         private static readonly string[] _StaticFiles = { "homelab.css", "accounts.css" };
 
+        private const string ExportPrefix = "/export/";
+
         private const string FlashCookie = "flash";
         private const string FlashCookieAttributes = "; Path=/; HttpOnly; SameSite=Strict";
 
@@ -254,6 +256,12 @@ namespace Server.Engines.WebAdmin
                 }
             }
 
+            if (path.StartsWith(ExportPrefix))
+            {
+                Export(context, path.Substring(ExportPrefix.Length));
+                return;
+            }
+
             if (path.StartsWith("/") && Array.IndexOf(_StaticFiles, path.Substring(1)) >= 0)
             {
                 Static(context, path.Substring(1));
@@ -261,6 +269,22 @@ namespace Server.Engines.WebAdmin
             }
 
             Respond(context, 404, "text/plain; charset=utf-8", "Not found.");
+        }
+
+        // The first export holds the game loop for as long as it builds every item. When that
+        // outlasts the timeout, the export still finishes, and the next request gets it.
+        private static void Export(HttpListenerContext context, string name)
+        {
+            string file = null;
+            RunOnGameThread(() => file = CraftExport.CraftExport.GetFile(name));
+
+            if (file == null)
+            {
+                Respond(context, 404, "text/plain; charset=utf-8", "Not found.");
+                return;
+            }
+
+            Respond(context, 200, "application/toml; charset=utf-8", file);
         }
 
         private static void Post(HttpListenerContext context, string path)
